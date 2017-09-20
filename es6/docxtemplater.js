@@ -1,111 +1,173 @@
 "use strict";
 
-var DocUtils = require("./docUtils");
+const DocUtils = require("./doc-utils");
+DocUtils.traits = require("./traits");
+DocUtils.moduleWrapper = require("./module-wrapper");
+const {defaults, str2xml, xml2str, moduleWrapper, concatArrays} = DocUtils;
+const {XTInternalError, throwFileTypeNotIdentified, throwFileTypeNotHandled} = require("./errors");
 
-var Docxtemplater = class Docxtemplater {
-	constructor(content, options) {
+const Docxtemplater = class Docxtemplater {
+	constructor() {
+		if (arguments.length > 0) {
+			throw new Error("The constructor with parameters has been removed in docxtemplater 3.0, please check the upgrade guide.");
+		}
 		this.compiled = {};
-		this.moduleManager = new Docxtemplater.ModuleManager();
-		this.moduleManager.gen = this;
+		this.modules = [];
 		this.setOptions({});
-		if ((typeof content !== "undefined" && content != null)) { this.load(content, options); }
+	}
+	setModules(obj) {
+		this.modules.forEach((module) => {
+			module.set(obj);
+		});
+	}
+	sendEvent(eventName) {
+		this.modules.forEach((module) => {
+			module.on(eventName);
+		});
 	}
 	attachModule(module) {
-		this.moduleManager.attachModule(module);
+		this.modules.push(moduleWrapper(module));
 		return this;
 	}
 	setOptions(options) {
-		var self = this;
-		this.options = options || {};
-		Object.keys(DocUtils.defaults).forEach(function (key) {
-			var defaultValue = DocUtils.defaults[key];
-			self[key] = (self.options[key] != null) ? self.options[key] : defaultValue;
+		this.options = options;
+		Object.keys(defaults).forEach((key) => {
+			const defaultValue = defaults[key];
+			this[key] = (this.options[key] != null) ? this.options[key] : defaultValue;
 		});
-		if (this.fileType === "docx" || this.fileType === "pptx") {
-			this.fileTypeConfig = Docxtemplater.FileTypeConfig[this.fileType];
+		if (this.zip) {
+			this.updateFileTypeConfig();
 		}
 		return this;
 	}
-	load(content, options) {
-		this.moduleManager.sendEvent("loading");
-		if ((content.file != null)) {
-			this.zip = content;
+	loadZip(zip) {
+		if (zip.loadAsync) {
+			throw new XTInternalError("Docxtemplater doesn't handle JSZip version >=3, see changelog");
 		}
-		else {
-			this.zip = new Docxtemplater.JSZip(content, options);
-		}
-		this.moduleManager.sendEvent("loaded");
-		this.templatedFiles = this.fileTypeConfig.getTemplatedFiles(this.zip);
+		this.zip = zip;
+		this.updateFileTypeConfig();
 		return this;
 	}
-	renderFile(fileName) {
-		this.moduleManager.sendEvent("rendering-file", fileName);
-		var currentFile = this.createTemplateClass(fileName);
-		this.zip.file(fileName, currentFile.render().content);
-		this.compiled[fileName] = currentFile.compiled;
-		return this.moduleManager.sendEvent("rendered-file", fileName);
+	compileFile(fileName) {
+		const currentFile = this.createTemplateClass(fileName);
+		currentFile.parse();
+		this.compiled[fileName] = currentFile;
+	}
+	compile() {
+		if (Object.keys(this.compiled).length) {
+			return this;
+		}
+
+		this.options.xmlFileNames = [];
+		this.modules = concatArrays([this.fileTypeConfig.baseModules.map(function (moduleFunction) {
+			return moduleFunction();
+		}), this.modules]);
+		this.options = this.modules.reduce((options, module) => {
+			return module.optionsTransformer(options, this);
+		}, this.options);
+		this.xmlDocuments = this.options.xmlFileNames.reduce((xmlDocuments, fileName) => {
+			const content = this.zip.files[fileName].asText();
+			xmlDocuments[fileName] = str2xml(content);
+			return xmlDocuments;
+		}, {});
+		this.setModules({zip: this.zip, xmlDocuments: this.xmlDocuments, data: this.data});
+		this.getTemplatedFiles();
+		this.setModules({compiled: this.compiled});
+		// Loop inside all templatedFiles (ie xml files with content).
+		// Sometimes they don't exist (footer.xml for example)
+		this.templatedFiles.forEach((fileName) => {
+			if (this.zip.files[fileName] != null) {
+				this.compileFile(fileName);
+			}
+		});
+		return this;
+	}
+	updateFileTypeConfig() {
+		const fileTypeIdentifiers = {
+			docx: "word/document.xml",
+			pptx: "ppt/presentation.xml",
+			odt: "mimetype",
+		};
+
+		const fileType = Object.keys(fileTypeIdentifiers).reduce((fileType, key) => {
+			if (fileType) {
+				return fileType;
+			}
+			if (this.zip.files[fileTypeIdentifiers[key]]) {
+				return key;
+			}
+			return fileType;
+		}, null);
+
+		if (fileType === "odt") {
+			throwFileTypeNotHandled(fileType);
+		}
+		if (!fileType) {
+			throwFileTypeNotIdentified();
+		}
+		this.fileType = fileType;
+		this.fileTypeConfig = this.options.fileTypeConfig || Docxtemplater.FileTypeConfig[this.fileType];
+		return this;
 	}
 	render() {
-		this.moduleManager.sendEvent("rendering");
-		// Loop inside all templatedFiles (basically xml files with content). Sometimes they dont't exist (footer.xml for example)
-		var iterable = this.templatedFiles;
-		for (var i = 0, fileName; i < iterable.length; i++) {
-			fileName = iterable[i];
-			if ((this.zip.files[fileName] != null)) {
-				this.renderFile(fileName);
-			}
-		}
-		this.moduleManager.sendEvent("rendered");
+		this.compile();
+		this.mapper = this.modules.reduce(function (value, module) {
+			return module.getRenderedMap(value);
+		}, {});
+
+		Object.keys(this.mapper).forEach((to) => {
+			const mapped = this.mapper[to];
+			const from = mapped.from;
+			const currentFile = this.compiled[from];
+			currentFile.setTags(mapped.data);
+			currentFile.render(to);
+			this.zip.file(to, currentFile.content, {createFolders: true});
+		});
+		this.sendEvent("syncing-zip");
+		this.syncZip();
 		return this;
 	}
-	getTags() {
-		var usedTags = [];
-		var iterable = this.templatedFiles;
-		for (var i = 0, fileName; i < iterable.length; i++) {
-			fileName = iterable[i];
-			if ((this.zip.files[fileName] != null)) {
-				var currentFile = this.createTemplateClass(fileName);
-				var usedTemplateV = currentFile.render().usedTags;
-				if (DocUtils.sizeOfObject(usedTemplateV)) {
-					usedTags.push({fileName, vars: usedTemplateV});
-				}
-			}
-		}
-		return usedTags;
+	syncZip() {
+		Object.keys(this.xmlDocuments).forEach((fileName) => {
+			this.zip.remove(fileName);
+			const content = xml2str(this.xmlDocuments[fileName]);
+			return this.zip.file(fileName, content, {createFolders: true});
+		});
 	}
-	setData(tags) {
-		this.tags = tags;
+	setData(data) {
+		this.data = data;
 		return this;
 	}
-	// output all files, if docx has been loaded via javascript, it will be available
 	getZip() {
 		return this.zip;
 	}
 	createTemplateClass(path) {
-		var self = this;
-		var usedData = this.zip.files[path].asText();
-		var obj = {
-			tags: this.tags,
-			moduleManager: this.moduleManager,
+		const usedData = this.zip.files[path].asText();
+		return this.createTemplateClassFromContent(usedData, path);
+	}
+	createTemplateClassFromContent(content, filePath) {
+		const xmltOptions = {
+			filePath,
 		};
-		Object.keys(DocUtils.defaults).forEach(function (key) {
-			obj[key] = self[key];
+		Object.keys(defaults).forEach((key) => {
+			xmltOptions[key] = this[key];
 		});
-		obj.fileTypeConfig = this.fileTypeConfig;
-		return new Docxtemplater.XmlTemplater(usedData, obj);
+		xmltOptions.fileTypeConfig = this.fileTypeConfig;
+		xmltOptions.modules = this.modules;
+		return new Docxtemplater.XmlTemplater(content, xmltOptions);
 	}
 	getFullText(path) {
 		return this.createTemplateClass(path || this.fileTypeConfig.textPath).getFullText();
 	}
+	getTemplatedFiles() {
+		this.templatedFiles = this.fileTypeConfig.getTemplatedFiles(this.zip);
+		return this.templatedFiles;
+	}
 };
 
-Docxtemplater.DocUtils = require("./docUtils");
-Docxtemplater.JSZip = require("jszip");
+Docxtemplater.DocUtils = DocUtils;
 Docxtemplater.Errors = require("./errors");
-Docxtemplater.ModuleManager = require("./moduleManager");
-Docxtemplater.XmlTemplater = require("./xmlTemplater");
-Docxtemplater.FileTypeConfig = require("./fileTypeConfig");
-Docxtemplater.XmlMatcher = require("./xmlMatcher");
-Docxtemplater.XmlUtil = require("./xmlUtil");
-Docxtemplater.SubContent = require("./subContent");
+Docxtemplater.XmlTemplater = require("./xml-templater");
+Docxtemplater.FileTypeConfig = require("./file-type-config");
+Docxtemplater.XmlMatcher = require("./xml-matcher");
 module.exports = Docxtemplater;

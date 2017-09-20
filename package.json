@@ -1,6 +1,6 @@
 {
   "name": "docxtemplater",
-  "version": "2.1.0",
+  "version": "3.1.7",
   "author": "Edgar Hipp",
   "description": ".docx generator working with templates and data (like Mustache)",
   "contributors": [
@@ -8,7 +8,7 @@
       "name": "Edgar Hipp"
     }
   ],
-  "main": "js/index.js",
+  "main": "js/docxtemplater.js",
   "bin": {
     "docxtemplater": "./js/cli.js"
   },
@@ -23,41 +23,60 @@
     "url": "https://github.com/open-xml-templating/docxtemplater"
   },
   "dependencies": {
-    "jszip": "^2.5.0",
-    "memoizejs": "^0.1.1"
+    "xmldom": "^0.1.27"
   },
   "devDependencies": {
     "angular-expressions": "^0.3.0",
-    "babel-cli": "^6.6.5",
-    "babel-eslint": "^6.0.0",
-    "babel-preset-es2015": "^6.5.0",
-    "bluebird": "^3.3.4",
-    "browserify": "^13.0.0",
-    "chai": "^3.3.0",
-    "eslint": "^2.2.0",
-    "mocha": "^2.3.3",
-    "mustache": "^2.1.3"
+    "babel-cli": "^6.26.0",
+    "babel-eslint": "^8.0.0",
+    "babel-loader": "^7.1.2",
+    "babel-preset-es2015": "^6.24.1",
+    "browserify": "^14.4.0",
+    "chai": "^4.1.2",
+    "docxtemplater-image-module": "^3.1.0",
+    "envify": "^4.1.0",
+    "eslint": "^4.6.1",
+    "eslint-plugin-dependencies": "^2.4.0",
+    "image-size": "^0.6.1",
+    "istanbul": "^0.4.5",
+    "jszip": "^2.6.1",
+    "lodash": "^4.17.4",
+    "mkdirp": "^0.5.1",
+    "mocha": "^3.5.3",
+    "rimraf": "^2.6.2",
+    "selenium-standalone": "^6.9.0",
+    "serve-static": "^1.12.4",
+    "uglify-js": "^3.1.0",
+    "webdriverio": "^4.8.0",
+    "webpack": "^3.6.0"
   },
   "license": "MIT",
   "engines": {
     "node": ">=0.10"
   },
   "scripts": {
-    "preversion": "npm test",
-    "compile": "npm run convertto:es5 && node examples/compile_site.js",
-    "browserify:test": "browserify -r ./js/tests/docxtemplater.js -s DocxtemplaterTest > browser/docxtemplaterTest.js",
-    "browserify:lib": "browserify -r ./js/docxtemplater.js -s Docxtemplater > build/docxtemplater.js",
-    "browserify:demo": "browserify -r ./examples/main.js -s Docxdemo > browser/main.min.js",
-    "uglify:lib": "uglifyjs build/docxtemplater.js > build/docxtemplater.min.js",
-    "browserify": "npm run browserify:test && npm run browserify:lib && npm run browserify:demo",
-    "convertto:es5": "rm js -rf ; mkdir -p js; npm run babel",
+    "generate:doc": "cd docs; rm build/ -rf ; make html",
+    "profile": "./profile.bash",
+    "preversion": "npm run lint && npm test && rimraf build && mkdirp build && npm run browserify && npm run uglify && npm run verifypublishsize && npm run test:chrome",
+    "check-casing": "./check-casing.bash",
+    "compile": "npm run convertto:es5",
+    "browserify:test": "browserify -t [ envify --FAST true ] -r ./js/tests/index.js -s DocxtemplaterTest > browser/docxtemplater-test.js",
+    "browserify:lib": "webpack",
+    "uglify:lib": "MIN=true webpack",
+    "uglify": "npm run uglify:lib",
+    "browserify": "npm run browserify:test && npm run browserify:lib",
+    "convertto:es5": "rimraf js -rf && mkdirp js && npm run babel && cp es6/tests/*.xml js/tests ",
     "convertto:es5:watch": "npm run babel -- --watch",
-    "test:watch": "node watch_file_and_run_test.js & npm run convertto:es5:watch",
-    "lint": "eslint .",
+    "test:coverage": "istanbul cover _mocha --  es6/tests/index.js",
+    "lint": "eslint . && ./check-casing.bash",
+    "lint:fix": "eslint . --fix && ./check-casing.bash",
+    "test:chrome": "BROWSER=CHROME ./webdriver.bash",
     "babel": "babel es6 --out-dir js",
-    "mocha": "mocha js/tests/docxtemplater.js",
-    "test:es6": "mocha es6/tests/docxtemplater.js",
-    "test": "npm run compile && npm run mocha",
-    "test:es5": "npm test"
+    "mocha": "mocha --full-trace --check-leaks js/tests/index.js",
+    "test:es6": "mocha --full-trace --check-leaks es6/tests/index.js",
+    "test:es6:fast": "FAST=true mocha --full-trace --check-leaks es6/tests/index.js",
+    "test": "npm run convertto:es5 && npm run mocha",
+    "test:es5": "npm test",
+    "verifypublishsize": "./verifypublishsize.bash"
   }
 }

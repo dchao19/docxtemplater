@@ -1,7 +1,7 @@
 *.sublime-project
 *.sublime-workspace
 npm-debug.log
-node_modules
+node_modules/
 .idea
 test/spec/output.docx
 /output.docx
@@ -11,8 +11,10 @@ tags
 *.spec.map
 *.log
 /js
+/es6/tests/filenames.js
 /build
 /browser
+/browser-demo
 examples/index.html
 *.es5
 .babel.json
@@ -21,3 +23,6 @@ build/
 vendor/
 js/
 test/
+coverage/
+prof/
+.git

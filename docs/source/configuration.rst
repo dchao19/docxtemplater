@@ -6,13 +6,12 @@
 Configuration
 =============
 
-The options that you can set when creating a new Docxtemplater
-
-It documents the options parameter when you do:
+You can configure docxtemplater with an options object by using the ``setOptions`` method.
 
 .. code-block:: javascript
 
-    var doc=new Docxtemplater(content);
+    var doc=new Docxtemplater();
+    doc.loadZip(zip);
     doc.setOptions(options)
 
 Custom Parser
@@ -35,33 +34,13 @@ docxtemplater comes shipped with this parser:
         'get': function(scope) {
           if (tag === '.') {
             return scope;
-          } else {
+          } 
+          else {
             return scope[tag];
           }
         }
       };
     },
-
-To use the angular-parser, do the following:
-
-.. code-block:: javascript
-
-    expressions= require('angular-expressions');
-    // define your filter functions here, eg:
-    // expressions.filters.split = function(input, str) { return input.split(str); }
-    angularParser= function(tag) {
-        return {
-            get: tag == '.' ? function(s){ return s;} : expressions.compile(tag)
-        };
-    }
-    new Docxtemplater(data).setOptions({parser:angularParser})
-
-.. note::
-
-    The require() works in the browser if you include vendor/angular-parser-browser.js
-
-See for a complete reference of all possibilities of angularjs parsing:
-http://teropa.info/blog/2014/03/23/angularjs-expressions-cheatsheet.html
 
 Custom delimiters
 -----------------
@@ -70,13 +49,9 @@ You can set up your custom delimiters with this syntax:
 
 .. code-block:: javascript
 
-    new Docxtemplater(data)
+    new Docxtemplater()
+        .loadZip(zip)
         .setOptions({delimiters:{start:'[[',end:']]'}})
-
-.. warning::
-
-    In previous versions, you could write `DocUtils.Tags={start:'[[',end:']]'};`, but this is no more possible
-
 
 nullGetter
 ----------
@@ -87,34 +62,15 @@ By default the nullGetter is the following function
 
 .. code-block:: javascript
 
-    nullGetter: function(tag, props) {
-        if (props.tag === "simple") {
-            return "undefined";
-        }
-        if (props.tag === "raw") {
-            return "";
-        }
-        return "";
-    }
+	nullGetter(part) {
+		if (!part.module) {
+			return "undefined";
+		}
+		if (part.module === "rawxml") {
+			return "";
+		}
+		return "";
+	},
 
 This means that the default value for simple tags is to show "undefined".
 The default for rawTags ({@rawTag}) is to drop the paragraph completely (you could enter any xml here).
-
-Intelligent LoopTagging
------------------------
-
-The name of this option is `intelligentTagging` (boolean).
-
-When looping over an element, docxtemplater needs to know over which
-element you want to loop. By default, it tries to do that intelligently
-(by looking what XML Tags are between the {tags}). However, if you want
-to always use the <w:t> tag by default, set this option to false.
-
-You can always specify over which element you want to loop with the dash loop syntax
-
-Image Replacing
----------------
-
-.. note::
-
-    The imageReplacing feature has been removed from the main docxtemplater package. This feature has been implemented in an external module that can be found here : https://github.com/edi9999/docxtemplater-image-module.

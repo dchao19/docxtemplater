@@ -1,10 +1,145 @@
-### master
+### 3.1.6
+
+Show clear error if file is ODT, escape " as `&quot;`
+
+### 3.1.5
+
+Template values in docProps/core.xml and docProps/app.xml
+
+### 3.1.4
+
+Add possibility to have RenderingErrors (if data is incorrect)
+
+### 3.1.3
+
+Fix `RangeError: Maximum call stack size exceeded` with very big document
+
+### 3.1.2
+
+Handle unclosed tag <a:t /> and <w:t />
+
+### 3.1.1
+
+Bugfix loop over string value (fixes https://github.com/open-xml-templating/docxtemplater/issues/309\)
+
+### 3.1.0
+
+Add support for multi errors :
+
+docxtemplater doesn't fail on the first error, but instead, will throw multiple errors at the time. See https://docxtemplater.readthedocs.io/en/latest/errors.html for a detailled explanation.
+
+### 3.0.12
+
+Add js/tests to npm package (for modules)
+
+### 3.0.11
+
+Reduce size of the package
+
+### 3.0.10
+
+Reduce size of the package
+
+### 3.0.9
+
+Reduce size of the package (718.9 MB to 1.0 MB), and add prepublish script to ensure the size will never exceed 1.5MB
+
+### 3.0.8
+
+Add expanded property when using expandTo
+
+### 3.0.7
+
+Bugfix : Do not decode utf8 in xmlDocuments
+
+### 3.0.6
+
+-	When using getRenderedMap in the modules, we now pass the filepath of the file that will be generated instead of the path of the template.
+
+### 3.0.5
+
+-	Remove cycle between traits and docutils
+-	Make sure fileTypeConfig is uptodate
+
+### 3.0.4
+
+-	Autodetection of filetype : if you use pptx, you don't have to write doc.setOptions({fileType: "pptx"}) anymore.
+
+-	Intelligent tagging for pptx (Fixes issue #284)
+
+### 3.0.3
+
+-	Update documentation
+-	Completely remove intelligentTagging (which is on for everyone)
+-	Performance improvements for arrays: prefer push over concat
+-	Add automatic module wrapping
+-	Add mecanism to change which files to template with modules
+
+### 3.0.2
+
+-	The modules are now ordered in the following order : baseModules, and then attachedModules. Before version 3.0.2, the attachedModules came before baseModules. This fixes : https://github.com/open-xml-templating/docxtemplater-image-module/issues/76
+
+### 3.0.1 [YANKED]
+
+This release was published by error, and should not be used at all.
+
+### 3.0.0
+
+-	The rendering of the templates has now multiple steps : Lexing, Parsing, and Rendering. This makes the code much more robust, they might be bugs at the beginning, but in the long run, the code is much easier to understand/debug/change.
+-	The module system was completely changed, no compatibility is kept between version 2 and version 3, please make sure to update your modules if needed.
+-	You can't have the same startTag and endTag (for example `$foo$`), because this would make the code more complex and the errorHandling quite impossible.
+-	All extended features (loop, rawxml, invertedloops), are written as v3 modules. We dogfood our own module system, and will hopefully improve it that way.
+
+-	The constructor arguments have been removed, and you are responsible to load the JSZip.
+
+	Instead of :
+
+	```
+	var doc = new Docxtemplater(content);
+	```
+
+	You now should do :
+
+	```
+	var zip = new JSZip(content);
+	var doc=new Docxtemplater().loadZip(zip)
+	```
+
+-	getTags() has been removed. It is now not easily possible to get the tags. See https://github.com/open-xml-templating/docxtemplater/issues/258 for a alternate solution
+
+The **JSZip version that you use should be 2.x**, the 3.x is now exclusively async, which Docxtemplater doesn't handle yet.
+
+### 2.1.5
+
+-	Fix stacktrace not showing up (#245)
+
+### 2.1.4
+
+-	Fixed a memory leak when using large document (10Mb document.xml) (#237)
+-	Add fileTypeConfig options in setOptions to define your own fileType config (#235)
+
+### 2.1.3
+
+-	{@rawXml} has been fixed for pptx
+
+### 2.1.2
+
+-	Add possibility to close loopTag with {/} #192
+
+### 2.1.1
+
+-	Bug fix : Some times, docxtemplater could eat lots of memory due to the new "compilation" feature that was only experimental. As this feature is not yet used, it was completely removed from the codebase.
+-	Performance : The code has been made a little bit faster.
+
+### 2.1.0
+
+-	**Speed Improvements** : docxtemplater had a regression causing it to be slow for loops. The regression would cause the code to run in O(n²) instead of O(n) where n is the length of the loops (with {#users}{name}{/users}. The bug is now fixed, and docxtemplater gained a lot of speed for users of lengthy loops.
 
 ### 2.0.0
 
 -	**Breaking** : To choose between docx or pptx, you now have to pass docx.setOptions({fileType:'docx'}) where the fileTypes are one of 'pptx', 'docx' (default is 'docx')
 -	Using es6 instead of coffeescript to code (code is still compiled to es5, to be usable with node v0.{10,12} or in the browser)
--	Add finalize step in compile function to throw an error if a tag is unclosed
+-	Add finalize step in render function to throw an error if a tag is unclosed
 -	Module API has been updated, notably the tagXml property doesn't exist anymore, you should use the properties in `fileTypeConfig`
 -	You should check if your modules have updated for the new module API, for instance, you should use version 1.0 of the docxtemplater image module
 
@@ -113,4 +248,4 @@ Upgrade guide :
 
 If you set qrCode:true, you are affected. The Command Line is not affected as of v0.7.0 (but was on 0.6.3 and less). However the command line as of v0.7.0 is not more able to load images over the filesystem.
 
-You should set qrCode to a function now, according to https://docxtemplater.readthedocs.org/en/latest/configuration.html#image-replacing.
+You should set qrCode to a function now, according to https://docxtemplater.readthedocs.io/en/latest/configuration.html#image-replacing.
